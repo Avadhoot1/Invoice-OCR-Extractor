@@ -1,0 +1,82 @@
+Main.py
+
+import pandas as pd
+import pytesseract
+from preprocess import preprocess_image
+from extractor import extract_text
+from utils import extract_data
+
+# Set Tesseract path (Windows)
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+file_path = "data/invoice.jpg"
+
+# Step 1: Preprocess
+img = preprocess_image(file_path)
+
+# Step 2: OCR
+text = extract_text(img)
+print("\nExtracted Text:\n", text)
+
+# Step 3: Extract Data
+data = extract_data(text)
+print("\nStructured Data:\n", data)
+
+# Step 4: Save to CSV
+df = pd.DataFrame([data])
+df.to_csv("output/result.csv", index=False)
+
+preprocess.py
+
+import cv2
+def preprocess_image(path):
+    img = cv2.imread(path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
+    return thresh
+
+extractor.py
+
+import pytesseract
+def extract_text(image):
+    return pytesseract.image_to_string(image)
+
+utils.py
+
+import re
+def extract_data(text):
+    data = {}
+    invoice = re.search(r"Invoice\s*No[:\s]*(\w+)", text)
+    date = re.search(r"Date[:\s]*([\d/.-]+)", text)
+    amount = re.search(r"(Total|Amount)[:\s]*([\d,.]+)", text)
+    data["invoice_number"] = invoice.group(1) if invoice else None
+    data["date"] = date.group(1) if date else None
+    data["amount"] = amount.group(2) if amount else None
+    return data
+
+pdf_handler.py
+
+from pdf2image import convert_from_path
+def pdf_to_images(pdf_path):
+    return convert_from_path(pdf_path)
+
+app.py (Streamlit UI)
+
+import streamlit as st
+import cv2
+import pytesseract
+import numpy as np
+from utils import extract_data
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+st.title("📄 Invoice OCR Extractor")
+uploaded_file = st.file_uploader("Upload Invoice", type=["jpg", "png"])
+if uploaded_file:
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    img = cv2.imdecode(file_bytes, 1)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    text = pytesseract.image_to_string(gray)
+    st.subheader("Extracted Text")
+    st.text(text)
+    data = extract_data(text)
+    st.subheader("Extracted Data")
+    st.json(data)
